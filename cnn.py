@@ -1,7 +1,8 @@
 
 import os
+GPU ='1'
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]=GPU
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -10,15 +11,14 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from tensorflow.keras import Input
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Concatenate, Conv1D, MaxPooling1D
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Concatenate, Conv1D, MaxPooling1D, LSTM,Lambda
 
-
+CLASSIFIER = 'Scaled+CNN+LSTMx2+Relu' +"_GPU_"+GPU
 matrix_root = "./matrixes"
 
 
-
-train_values = np.load(matrix_root+"/train_values.npy")
-price_values = np.load(matrix_root+"/price_values.npy")
+train_values = np.load(matrix_root+"/scaled_train_values.npy")
+price_values = np.load(matrix_root+"/scaled_price_values.npy")
 date_values = np.load(matrix_root+"/date_values.npy")
 categorical_values = np.load(matrix_root+"/categorical_values.npy")
 
@@ -55,7 +55,11 @@ def conv_net():
     x = MaxPooling2D((3,3),padding='same')(x)
     x = Conv2D(64,(7,7),strides=(3,1), padding='same', activation='relu')(x)
     x = MaxPooling2D((3,3),padding='same')(x)
-    x_out = Flatten()(x) #x should be changed for cnn
+
+    x = Flatten()(x) #x should be changed for cnn
+    x = Lambda(lambda x: tf.reshape(x, (1,5,128)))(x)
+    x = LSTM(100, activation='relu', return_sequences=True)(x)
+    x_out = LSTM(100, activation='relu')(x)
 #    x_out = Dense(30490, activation='relu')(x)
     return tf.keras.Model([x_in],[x_out])
 
@@ -70,7 +74,7 @@ def emb_net():
     x = MaxPooling1D(2,padding='same')(x)
     x = Conv1D(128, 100, strides=7, padding='same', activation='relu')(x)
     x = MaxPooling1D(2,padding='same')(x)
-    x = Flatten()(x)
+    x = Flatten()(x) 
     x_out = Dense(320)(x)
     return tf.keras.Model([x_cat],[x_out])
 def date_net():
@@ -89,6 +93,7 @@ def full_model():
     x_date = Input(shape=(100,61))
 
     cnn, emb_nn, date_nn = conv_net(), emb_net(), date_net()
+    cnn.summary()
     emb_nn.summary()
     date_nn.summary()
     cnn_out = cnn(x_in)
@@ -97,8 +102,11 @@ def full_model():
     
     feat = Concatenate()([emb_out,date_out])
     x = Concatenate()([cnn_out,feat])
+    x = Lambda(lambda x: tf.reshape(x, (1,4,185)))(x)
+    x = LSTM(365, activation='relu', return_sequences=True)(x)
+    x = LSTM(365, activation='relu')(x)
     x = Dense(1000)(x)
-    x_out = Dense(30490)(x)
+    x_out = Dense(30490, activation='relu')(x)
     return tf.keras.Model([x_in,x_cat,x_date],[x_out])
 
 final_model = full_model()
@@ -108,7 +116,7 @@ final_model.summary()
 
 
 log_dir="logs/"
-CLASSIFIER = 'CNN+cat+date'
+
 os.makedirs(log_dir, exist_ok=True)
 summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + ' Classifier={}__'.format(CLASSIFIER) + datetime.datetime.now().strftime("%Y-%m-%d")+"/train/")
 val_summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + ' Classifier={}__'.format(CLASSIFIER) + datetime.datetime.now().strftime("%Y-%m-%d")+"/validation/")
@@ -183,3 +191,4 @@ def train(epochs=50):
 
 
 train(100)
+

@@ -1,5 +1,5 @@
 # M0 - CNN
-class M0()
+class M0():
     def conv_net():
         x_in = Input(shape=(30490,100,2))
         x = Conv2D(32,(7,7),strides=(3,1), padding='same', activation='relu')(x_in)
