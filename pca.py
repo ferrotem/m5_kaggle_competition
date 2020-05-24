@@ -1,8 +1,10 @@
 
 import os
-GPU ='1'
+GPU ='2'
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]=GPU
+
+
 import tensorflow as tf
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -16,8 +18,6 @@ if gpus:
   except RuntimeError as e:
     # Memory growth must be set before GPUs have been initialized
     print(e)
-
-
 import numpy as np
 import pandas as pd
 import datetime
@@ -27,40 +27,24 @@ from tqdm import tqdm
 from tensorflow.keras import Input
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Concatenate, Conv1D, MaxPooling1D, LSTM,Lambda
 
-CLASSIFIER = 'Scaled+CNN+LSTMx2+Relu' +"_GPU_"+GPU
+CLASSIFIER = 'PCAx1' +"_GPU_"+GPU
+SAMPLE_SIZE = 100
 matrix_root = "./matrixes"
-
+pca_root = "./pca"
 
 train_values = np.load(matrix_root+"/scaled_train_values.npy")
 price_values = np.load(matrix_root+"/scaled_price_values.npy")
 date_values = np.load(matrix_root+"/date_values.npy")
 categorical_values = np.load(matrix_root+"/categorical_values.npy")
 
-
-X_train = []
-Y_train = []
-for i in range(1713):
-    X = []
-    X.append(train_values[:,i:i+100])
-    X.append(price_values[:,i:i+100])
-    X_train.append(X)
-    Y_train.append(train_values[:,i+100])
-
-X_val = []
-Y_val = []
-for i in range(1713,1813):
-    X = []
-    X.append(train_values[:,i:i+100])
-    X.append(price_values[:,i:i+100])
-    X_val.append(X)
-    Y_val.append(train_values[:,i+100])
-
-# X_train, Y_train = np.array(X_train).reshape((30490,100,2)), np.array(Y_train)
-# X_val, Y_val = np.array(X_val).reshape((30490,100,2)), np.array(Y_val)
+X_train = np.load(pca_root+"/X_list_train_values.npy")
+Y_train = np.load(pca_root+"/Y_list_train_values.npy")
+X_val = np.load(pca_root+"/X_list_validation_values.npy")
+Y_val = np.load(pca_root+"/Y_list_validation_values.npy") 
 
 
 def conv_net():
-    x_in = Input(shape=(30490,100,2))
+    x_in = Input(shape=(SAMPLE_SIZE,100,2))
     x = Conv2D(32,(7,7),strides=(3,1), padding='same', activation='relu')(x_in)
     x = MaxPooling2D((3,3),padding='same')(x)
     x = Conv2D(64,(7,7),strides=(3,1), padding='same', activation='relu')(x)
@@ -70,10 +54,10 @@ def conv_net():
     x = Conv2D(64,(7,7),strides=(3,1), padding='same', activation='relu')(x)
     x = MaxPooling2D((3,3),padding='same')(x)
 
-    x = Flatten()(x) #x should be changed for cnn
-    x = Lambda(lambda x: tf.reshape(x, (1,5,128)))(x)
-    x = LSTM(100, activation='relu', return_sequences=True)(x)
-    x_out = LSTM(100, activation='relu')(x)
+    x_out = Flatten()(x) #x should be changed for cnn
+    # x = Lambda(lambda x: tf.reshape(x, (1,1,128)))(x)
+    # x = LSTM(100, activation='relu', return_sequences=True)(x)
+    # x_out = LSTM(100, activation='relu')(x)
 #    x_out = Dense(30490, activation='relu')(x)
     return tf.keras.Model([x_in],[x_out])
 
@@ -102,7 +86,7 @@ def date_net():
     return tf.keras.Model([x_date],[x_out])
 
 def full_model():
-    x_in = Input(shape=(30490,100,2))
+    x_in = Input(shape=(SAMPLE_SIZE,100,2))
     x_cat = Input(shape=(30490,15))
     x_date = Input(shape=(100,61))
 
@@ -116,7 +100,7 @@ def full_model():
     
     feat = Concatenate()([emb_out,date_out])
     x = Concatenate()([cnn_out,feat])
-    x = Lambda(lambda x: tf.reshape(x, (1,4,185)))(x)
+    x = Lambda(lambda x: tf.reshape(x, (1,4,192)))(x)
     x = LSTM(365, activation='relu', return_sequences=True)(x)
     x = LSTM(365, activation='relu')(x)
     x = Dense(1000)(x)
@@ -168,12 +152,13 @@ def train(epochs=50):
         for (x, y) in zip(X_train, Y_train):
 
             x, y = tf.convert_to_tensor(x), tf.convert_to_tensor(y)
-            x = tf.reshape(x, (1, 30490,100,2))
+            x = tf.reshape(x, (1, SAMPLE_SIZE,100,2))
             y = tf.expand_dims(y, axis = 0)
             x_date100 =x_date[:,step:step+100,:]
             train_loss, prediction = train_step(x, x_cat,x_date100, y )
             if step%100==0:
                 total_step = 1713*epoch+step
+                #print("tttt: ", total_step, "epoch: ", epoch)
                 with summary_writer.as_default():
                     tf.summary.scalar('loss', np.sum(train_loss.numpy()), step=total_step)
                     tf.summary.histogram('predicted', prediction.numpy(), step=total_step)
@@ -189,7 +174,7 @@ def train(epochs=50):
 
         for (x,y) in zip(X_val, Y_val):
             x, y = tf.convert_to_tensor(x), tf.convert_to_tensor(y)
-            x = tf.reshape(x, (1, 30490,100,2))
+            x = tf.reshape(x, (1, SAMPLE_SIZE,100,2))
             y = tf.expand_dims(y, axis = 0)
             x_date100 =x_date[:,val_step+1713:val_step+1813,:]
             loss, _ = train_step(x, x_cat,x_date100, y, False)
@@ -205,4 +190,3 @@ def train(epochs=50):
 
 
 train(100)
-
