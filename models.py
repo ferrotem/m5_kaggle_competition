@@ -229,3 +229,77 @@ class M1():
 
 
     train(100)
+
+class pca_x1():
+    X_train = np.load(pca_root+"/X_list_train_values.npy")
+    Y_train = np.load(pca_root+"/Y_list_train_values.npy")
+    X_val = np.load(pca_root+"/X_list_validation_values.npy")
+    Y_val = np.load(pca_root+"/Y_list_validation_values.npy") 
+
+
+    def conv_net():
+        x_in = Input(shape=(SAMPLE_SIZE,100,2))
+        x = Conv2D(32,(7,7),strides=(3,1), padding='same', activation='relu')(x_in)
+        x = MaxPooling2D((3,3),padding='same')(x)
+        x = Conv2D(64,(7,7),strides=(3,1), padding='same', activation='relu')(x)
+        x = MaxPooling2D((3,3),padding='same')(x)
+        x = Conv2D(128,(7,7),strides=(3,1), padding='same', activation='relu')(x)
+        x = MaxPooling2D((3,3),padding='same')(x)
+        x = Conv2D(64,(7,7),strides=(3,1), padding='same', activation='relu')(x)
+        x = MaxPooling2D((3,3),padding='same')(x)
+
+        x_out = Flatten()(x) #x should be changed for cnn
+        # x = Lambda(lambda x: tf.reshape(x, (1,1,128)))(x)
+        # x = LSTM(100, activation='relu', return_sequences=True)(x)
+        # x_out = LSTM(100, activation='relu')(x)
+    #    x_out = Dense(30490, activation='relu')(x)
+        return tf.keras.Model([x_in],[x_out])
+
+    # cnn = conv_net()
+    # cnn.summary()
+
+    def emb_net():
+        x_cat = Input(shape=(30490,15))
+        x = Conv1D(32, 100, strides=7, padding='same', activation='relu')(x_cat)
+        x = MaxPooling1D(2,padding='same')(x)
+        x = Conv1D(64, 100, strides=7, padding='same', activation='relu')(x)
+        x = MaxPooling1D(2,padding='same')(x)
+        x = Conv1D(128, 100, strides=7, padding='same', activation='relu')(x)
+        x = MaxPooling1D(2,padding='same')(x)
+        x = Flatten()(x) 
+        x_out = Dense(320)(x)
+        return tf.keras.Model([x_cat],[x_out])
+    def date_net():
+        x_date = Input(shape=(100,61))
+        x = Conv1D(32,7,strides=1, padding='same', activation='relu')(x_date)
+        x = MaxPooling1D(2,padding='same')(x)
+        x = Conv1D(64,7,strides=1, padding='same', activation='relu')(x)
+        x = MaxPooling1D(2,padding='same')(x)
+        x = Flatten()(x)
+        x_out = Dense(320)(x)
+        return tf.keras.Model([x_date],[x_out])
+
+    def full_model():
+        x_in = Input(shape=(SAMPLE_SIZE,100,2))
+        x_cat = Input(shape=(30490,15))
+        x_date = Input(shape=(100,61))
+
+        cnn, emb_nn, date_nn = conv_net(), emb_net(), date_net()
+        cnn.summary()
+        emb_nn.summary()
+        date_nn.summary()
+        cnn_out = cnn(x_in)
+        emb_out = emb_nn(x_cat)
+        date_out = date_nn(x_date)
+        
+        feat = Concatenate()([emb_out,date_out])
+        x = Concatenate()([cnn_out,feat])
+        x = Lambda(lambda x: tf.reshape(x, (1,4,192)))(x)#185 pca2, 192, pca1
+        x = LSTM(365, activation='relu', return_sequences=True)(x)
+        x = LSTM(365, activation='relu')(x)
+        x = Dense(1000)(x)
+        x_out = Dense(30490, activation='relu')(x)
+        return tf.keras.Model([x_in,x_cat,x_date],[x_out])
+
+    final_model = full_model()
+    final_model.summary()

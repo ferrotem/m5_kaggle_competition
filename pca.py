@@ -27,7 +27,7 @@ from tqdm import tqdm
 from tensorflow.keras import Input
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Concatenate, Conv1D, MaxPooling1D, LSTM,Lambda
 
-CLASSIFIER = 'PCAx1' +"_GPU_"+GPU
+CLASSIFIER = 'PCAx1_wthout_Pool_x2' +"_GPU_"+GPU
 SAMPLE_SIZE = 100
 matrix_root = "./matrixes"
 pca_root = "./pca"
@@ -48,11 +48,11 @@ def conv_net():
     x = Conv2D(32,(7,7),strides=(3,1), padding='same', activation='relu')(x_in)
     x = MaxPooling2D((3,3),padding='same')(x)
     x = Conv2D(64,(7,7),strides=(3,1), padding='same', activation='relu')(x)
-    x = MaxPooling2D((3,3),padding='same')(x)
+    #x = MaxPooling2D((3,3),padding='same')(x)
     x = Conv2D(128,(7,7),strides=(3,1), padding='same', activation='relu')(x)
-    x = MaxPooling2D((3,3),padding='same')(x)
+    #x = MaxPooling2D((3,3),padding='same')(x)
     x = Conv2D(64,(7,7),strides=(3,1), padding='same', activation='relu')(x)
-    x = MaxPooling2D((3,3),padding='same')(x)
+    #x = MaxPooling2D((3,3),padding='same')(x)
 
     x_out = Flatten()(x) #x should be changed for cnn
     # x = Lambda(lambda x: tf.reshape(x, (1,1,128)))(x)
@@ -67,20 +67,20 @@ def conv_net():
 def emb_net():
     x_cat = Input(shape=(30490,15))
     x = Conv1D(32, 100, strides=7, padding='same', activation='relu')(x_cat)
-    x = MaxPooling1D(2,padding='same')(x)
+    #x = MaxPooling1D(2,padding='same')(x)
     x = Conv1D(64, 100, strides=7, padding='same', activation='relu')(x)
-    x = MaxPooling1D(2,padding='same')(x)
+    #x = MaxPooling1D(2,padding='same')(x)
     x = Conv1D(128, 100, strides=7, padding='same', activation='relu')(x)
-    x = MaxPooling1D(2,padding='same')(x)
+    #x = MaxPooling1D(2,padding='same')(x)
     x = Flatten()(x) 
     x_out = Dense(320)(x)
     return tf.keras.Model([x_cat],[x_out])
 def date_net():
     x_date = Input(shape=(100,61))
     x = Conv1D(32,7,strides=1, padding='same', activation='relu')(x_date)
-    x = MaxPooling1D(2,padding='same')(x)
+    #x = MaxPooling1D(2,padding='same')(x)
     x = Conv1D(64,7,strides=1, padding='same', activation='relu')(x)
-    x = MaxPooling1D(2,padding='same')(x)
+    #x = MaxPooling1D(2,padding='same')(x)
     x = Flatten()(x)
     x_out = Dense(320)(x)
     return tf.keras.Model([x_date],[x_out])
@@ -100,7 +100,7 @@ def full_model():
     
     feat = Concatenate()([emb_out,date_out])
     x = Concatenate()([cnn_out,feat])
-    x = Lambda(lambda x: tf.reshape(x, (1,4,192)))(x)
+    x = Lambda(lambda x: tf.reshape(x, (1,4,704)))(x)#185 pca2, 192, pca1
     x = LSTM(365, activation='relu', return_sequences=True)(x)
     x = LSTM(365, activation='relu')(x)
     x = Dense(1000)(x)
@@ -189,4 +189,4 @@ def train(epochs=50):
         pbar.update(1)
 
 
-train(100)
+train(300)
