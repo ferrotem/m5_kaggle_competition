@@ -116,11 +116,18 @@ def test_step(x_input,x_cat, x_date, trainable = False):#,x_cat, x_date
     prediction = final_model([x_input, x_cat, x_date], training =trainable)#([x_input, x_cat, x_date], training =trainable)
     return prediction
 
-def pca_cal(X_in):
+def pca_calculation(x,i):
     pca = PCA(n_components=100, svd_solver='full')
-    pca.fit(X_in.T)
-    S_train = pca.transform(X_in.T)
+    pca.fit(x[:,i:i+100].T)
+    S_train = pca.transform(x[:,i:i+100].T)
     return S_train.T
+
+def difference(data, interval, start, end):
+    return [data[i] - data[i - interval] for i in range( start, end)]
+
+def mean(data, interval, ):
+    return [np.mean(data[i-interval:i,:], axis = 0) for i in range(start, end)]
+list_inter = [1,7,14,28,365]
 
 def test(epochs=56):
     pbar = tqdm(total =epochs, desc="total_epochs")
@@ -134,15 +141,18 @@ def test(epochs=56):
     x = tf.reshape(x, (1, 100,100,2)) 
     output = []
 
+
     for epoch in range(epochs):   
 
 
         x_date100 =x_date[:,1813+epoch:1913+epoch,:]
         prediction =test_step(x, x_cat,x_date100)
         X_test_t[:,:99]= X_test_t[:,1:100]
-        X_test_t[:,99] =prediction.numpy()
-
+        X_test_t[:,99] =prediction.numpy()+X_test_t[:,99]
         X_test_p = scaled_price[:,start+epoch:start+epoch+100]
+        
+        for inter in list_inter():
+            data = difference(Xs)
 
         print("shape: ", prediction.shape)
 
